@@ -1,4 +1,4 @@
-A STATEMENT ON LEGACY SUPPORT
+# A STATEMENT ON LEGACY SUPPORT
 
 In the terminal world there is much cruft that comes from old and unsup‐
 ported terminals that inherit incompatible modes  and  escape  sequences
@@ -14,4 +14,3 @@ no real evidence that most of the sequences are used today.
 
 Christoph Lohmann <20h@r-36.net>
 2012-09-13T07:00:36.081271045+02:00
-
