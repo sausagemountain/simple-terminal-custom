@@ -35,7 +35,7 @@ typedef struct {
 	void (*func)(const Arg *);
 	const Arg arg;
 	uint  release;
-	int  altscrn;  /* 0: don't care, -1: not alt screen, 1: alt screen */
+	int  altscreen;
 } MouseShortcut;
 
 typedef struct {
@@ -64,6 +64,9 @@ static void ttysend(const Arg *);
 
 /* config.h for applying patches and the configuration. */
 #include "config.h"
+
+/* size of title stack */
+#define TITLESTACKSIZE 8
 
 /* XEMBED messages */
 #define XEMBED_FOCUS_IN  4
@@ -203,11 +206,7 @@ static void (*handler[LASTEvent])(XEvent *) = {
 	[MotionNotify] = bmotion,
 	[ButtonPress] = bpress,
 	[ButtonRelease] = brelease,
-/*
- * Uncomment if you want the selection to disappear when you select something
- * different in another window.
- */
-/*	[SelectionClear] = selclear_, */
+	[SelectionClear] = selclear_,
 	[SelectionNotify] = selnotify,
 /*
  * PropertyNotify is only turned on when there is some INCR transfer happening
@@ -222,6 +221,8 @@ static DC dc;
 static XWindow xw;
 static XSelection xsel;
 static TermWindow win;
+static int tstki[2]; /* title and icon title stack indices */
+static char *titlestack[2][TITLESTACKSIZE]; /* title and icon title stack */
 
 /* Font Ring Cache */
 enum {
@@ -453,7 +454,7 @@ mouseaction(XEvent *e, uint release)
 	for (ms = mshortcuts; ms < mshortcuts + LEN(mshortcuts); ms++) {
 		if (ms->release == release &&
 		    ms->button == e->xbutton.button &&
-		    (!ms->altscrn || (ms->altscrn == (tisaltscr() ? 1 : -1))) &&
+		    (!ms->altscreen || ms->altscreen == (tisaltscr() ? 1 : -1)) &&
 		    (match(ms->mod, state) ||  /* exact or forced */
 		     match(ms->mod, state & ~forcemousemod))) {
 			ms->func(&(ms->arg));
@@ -1588,31 +1589,58 @@ xsetenv(void)
 }
 
 void
-xseticontitle(char *p)
+xfreetitlestack(void)
 {
+	for (int i = 0; i < LEN(titlestack); i++) {
+		free(titlestack[0][i]);
+		free(titlestack[1][i]);
+		titlestack[0][i] = NULL;
+		titlestack[1][i] = NULL;
+	}
+}
+
+void
+xsettitle(int i, char *p, int pop)
+{
+	int *pstki = &tstki[i];
+	char *(*pstack)[] = &titlestack[i];
 	XTextProperty prop;
-	DEFAULT(p, opt_title);
+
+	free((*pstack)[*pstki]);
+	if (pop) {
+		(*pstack)[*pstki] = NULL;
+		*pstki = (*pstki - 1 + TITLESTACKSIZE) % TITLESTACKSIZE;
+		p = (*pstack)[*pstki] ? (*pstack)[*pstki] : opt_title;
+	} else if (p) {
+		(*pstack)[*pstki] = xstrdup(p);
+	} else {
+		(*pstack)[*pstki] = NULL;
+		p = opt_title;
+	}
 
 	if (Xutf8TextListToTextProperty(xw.dpy, &p, 1, XUTF8StringStyle,
 	                                &prop) != Success)
 		return;
-	XSetWMIconName(xw.dpy, xw.win, &prop);
-	XSetTextProperty(xw.dpy, xw.win, &prop, xw.netwmiconname);
+	if (i == TITLE_MAIN) {
+		XSetWMName(xw.dpy, xw.win, &prop);
+		XSetTextProperty(xw.dpy, xw.win, &prop, xw.netwmname);
+	} else/* if (i == TITLE_ICON)*/ {
+		XSetWMIconName(xw.dpy, xw.win, &prop);
+		XSetTextProperty(xw.dpy, xw.win, &prop, xw.netwmiconname);
+	}
 	XFree(prop.value);
 }
 
 void
-xsettitle(char *p)
+xpushtitle(int i)
 {
-	XTextProperty prop;
-	DEFAULT(p, opt_title);
+	int *pstki = &tstki[i];
+	char *(*pstack)[] = &titlestack[i];
+	int stkin = (*pstki + 1) % TITLESTACKSIZE;
 
-	if (Xutf8TextListToTextProperty(xw.dpy, &p, 1, XUTF8StringStyle,
-	                                &prop) != Success)
-		return;
-	XSetWMName(xw.dpy, xw.win, &prop);
-	XSetTextProperty(xw.dpy, xw.win, &prop, xw.netwmname);
-	XFree(prop.value);
+	free((*pstack)[stkin]);
+	(*pstack)[stkin] = (*pstack)[*pstki] ? xstrdup((*pstack)[*pstki]) : NULL;
+	*pstki = stkin;
 }
 
 int
@@ -2068,7 +2096,7 @@ run:
 	XSetLocaleModifiers("");
 	cols = MAX(cols, 1);
 	rows = MAX(rows, 1);
-	tnew(cols, rows);
+	tinit(cols, rows);
 	xinit(cols, rows);
 	xsetenv();
 	selinit();
