@@ -29,7 +29,7 @@ hb.o: st.h
 
 $(OBJ): config.h config.mk
 
-st: $(OBJ)
+st: options $(OBJ)
 	$(CC) -o out/$@ $(OUTOBJ) $(STLDFLAGS)
 
 clean:
