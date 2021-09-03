@@ -2147,6 +2147,7 @@ strhandle(void)
 				dec = base64dec(STRESCARGJUST(2));
 				if (dec) {
 					xsetsel(dec);
+					xclipcopy();
 				} else {
 					fprintf(stderr, "erresc: invalid base64\n");
 				}
