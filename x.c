@@ -1511,7 +1511,7 @@ xdrawcursor(int cx, int cy, Glyph g, int ox, int oy, Glyph og, Line line, int le
 	xdrawglyph(og, ox, oy);
 	/* Redraw the line where cursor was previously.
 	 * It will restore the ligatures broken by the cursor. */
-	// xdrawline(line, 0, oy, len);
+	xdrawline(line, 0, oy, len);
 
 	if (IS_SET(MODE_HIDE))
 		return;
